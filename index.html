@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cat Pomodoro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+[hidden]{display:none!important}
+:root{--cream:#f5d7bf;--yellow:#fde85b;--screen:#fff5c7;--ink:#1a1411;--red:#8f3c3c;--gray:#8a7d70}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fdf6e3;font-family:VT323,'Courier New',monospace;font-size:20px;color:var(--ink)}
+.win{background:var(--cream);border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);width:min(440px,94vw);padding:3px}
+.bar{display:flex;align-items:center;gap:6px;height:34px;padding:0 4px;user-select:none}
+.bar{-webkit-app-region:drag}
+.bar-title{font:9px 'Press Start 2P',monospace;white-space:nowrap;background:var(--cream);padding:4px 6px}
+.stripes{flex:1;height:12px;background:repeating-linear-gradient(var(--red) 0 2px,transparent 2px 4px)}
+.box{width:22px;height:20px;background:var(--cream);border:2px solid var(--red);color:var(--red);font:9px 'Press Start 2P',monospace;padding:0;cursor:pointer}
+.bar button{-webkit-app-region:no-drag}
+.desktop-close{display:none}
+body.desktop-app .desktop-close{display:inline-block}
+.content{background:var(--yellow);border:2px solid var(--ink);padding:12px;margin-top:2px}
+.screen{background:var(--screen);border:1px solid #d9b87a;padding:10px;text-align:center}
+.phase{font:10px 'Press Start 2P',monospace;letter-spacing:1px;min-height:14px}
+.time{font:700 46px VT323,monospace;line-height:1.05}
+.say{min-height:24px;margin:2px 0}
+.stage{display:flex;justify-content:center}
+.stage canvas{width:384px;height:240px;image-rendering:pixelated}
+.field{display:flex;flex-direction:column;margin-top:10px;flex:1}
+.field label{font:8px 'Press Start 2P',monospace;margin-bottom:6px}
+input{font:20px VT323,monospace;padding:4px 6px;border:2px solid var(--ink);background:#fffdf3;color:var(--ink);width:100%}
+input:disabled{opacity:.6}
+.row{display:flex;gap:10px;margin-top:10px;align-items:flex-end}
+.row>.field{margin-top:0}
+.btns{justify-content:center;flex-wrap:wrap}
+.ok{font:10px 'Press Start 2P',monospace;background:var(--cream);color:var(--ink);border:3px double var(--red);border-radius:4px;padding:10px 12px;cursor:pointer}
+.ok:active{transform:translateY(2px)}
+.ok:disabled{opacity:.45;cursor:not-allowed}
+.small{padding:6px 8px;font-size:8px}
+h3{font:9px 'Press Start 2P',monospace;margin:16px 0 8px}
+.sum{margin:8px 0;font-size:18px}
+#hist{list-style:none;padding:0;margin:0;max-height:200px;overflow:auto}
+#hist li{background:var(--screen);border:1px solid var(--ink);padding:6px 8px;margin-bottom:6px}
+.history-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 8px}
+.history-head h3{margin:0}
+.history-head .ok{padding:7px 8px;font-size:7px;white-space:nowrap}
+#hist li.day-group{padding:8px}
+.day-heading{font:8px 'Press Start 2P',monospace;margin:0 0 6px}
+.day-summary{font-size:17px;margin-bottom:6px}
+.day-entries{list-style:none;padding:0;margin:0}
+.day-entries li{background:#fffdf3;border:1px solid var(--ink);padding:5px 6px;margin-bottom:4px}
+.mini{position:fixed;right:20px;bottom:20px;width:220px;z-index:5;box-shadow:4px 4px 0 var(--ink)}
+.mini .content{padding:8px}
+.mini .time{font-size:34px}
+.mini .screen{padding:6px}
+.mini .stage canvas{width:192px;height:120px}
+.mini .say{display:none}
+.mtask{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:18px}
+.mini.inpip{position:static;width:auto;box-shadow:none}
+body.desktop-app:not(.desktop-widget){min-height:100vh;background:#fdf6e3}
+body.desktop-app.desktop-widget{display:block;min-height:0;background:transparent;overflow:hidden}
+body.desktop-app.desktop-widget .mini{position:static;right:auto;bottom:auto;width:220px}
+body.desktop-app.desktop-widget .mini .say{display:block;min-height:0;max-height:24px;overflow:hidden;font-size:12px;line-height:12px}
+.collapsed .content{display:none}
+.drag{cursor:move}
+.overlay{position:fixed;inset:0;background:rgba(26,20,17,.35);display:grid;place-items:center;z-index:9}
+.dialog{width:min(360px,92vw)}
+.msg{background:var(--screen);border:1px solid #d9b87a;padding:18px;text-align:center;font-size:22px;min-height:120px;display:grid;place-items:center}
+</style>
+</head>
+<body>
+
+<div id="app" class="win">
+  <div class="bar">
+    <span class="stripes"></span><span class="bar-title">CAT POMODORO</span><span class="stripes"></span>
+    <button class="box" data-act="collapse" title="Minimize">_</button>
+    <button class="box" data-act="mini" title="Float mini view">&#8600;</button>
+    <button class="box" data-act="pip" title="Pop out (Chrome/Edge)">&#10697;</button>
+    <button class="box desktop-close" data-act="close" title="Close">&#215;</button>
+  </div>
+  <div class="content">
+    <div class="screen">
+      <div class="phase"></div>
+      <div class="time"></div>
+      <div class="say" id="say"></div>
+      <div class="stage" id="stageFull"></div>
+    </div>
+    <div class="field">
+      <label for="task">WHAT ARE YOU WORKING ON? (required)</label>
+      <input id="task" maxlength="80" placeholder="e.g. Solve 3 DP problems">
+    </div>
+    <div class="row">
+      <div class="field"><label for="workMin">DEEP WORK (min)</label><input id="workMin" type="number" min="1" max="180" value="25"></div>
+      <div class="field"><label for="restMin">REST (min)</label><input id="restMin" type="number" min="1" max="60" value="5"></div>
+    </div>
+    <div class="row btns">
+      <button class="ok" data-act="start">Start</button>
+      <button class="ok" data-act="pause">Pause</button>
+      <button class="ok" data-act="skip">Skip</button>
+      <button class="ok" data-act="reset">Reset</button>
+      <button class="ok" data-act="stop">Stop</button>
+    </div>
+    <div class="history-head">
+      <h3>HISTORY</h3>
+      <button class="ok small" id="historyMode" type="button">Show all days</button>
+    </div>
+    <input type="date" id="day">
+    <div class="sum" id="sum"></div>
+    <ul id="hist"></ul>
+  </div>
+</div>
+
+<div id="mini" class="win mini" hidden>
+  <div class="bar drag">
+    <span class="stripes"></span><span class="bar-title">CAT POMODORO</span>
+    <button class="box" data-act="collapse" title="Minimize">_</button>
+    <button class="box" data-act="full" title="Expand">&#10530;</button>
+    <button class="box desktop-close" data-act="close" title="Close">&#215;</button>
+  </div>
+  <div class="content">
+    <div class="screen">
+      <div class="phase"></div>
+      <div class="time"></div>
+      <div class="mtask" id="mtask"></div>
+      <div class="say"></div>
+      <div class="stage" id="stageMini"></div>
+    </div>
+    <div class="row btns">
+      <button class="ok small" data-act="start">Start</button>
+      <button class="ok small" data-act="pause">Pause</button>
+      <button class="ok small" data-act="skip">Skip</button>
+      <button class="ok small" data-act="reset">Reset</button>
+      <button class="ok small" data-act="stop">Stop</button>
+    </div>
+  </div>
+</div>
+
+<div id="dlg" class="overlay" hidden>
+  <div class="win dialog">
+    <div class="bar"><span class="stripes"></span><span class="bar-title">CAT'S MESSAGE</span><span class="stripes"></span></div>
+    <div class="content">
+      <div class="msg"><div>
+        <div style="font-size:44px">&#128008;&#8205;&#11035;</div>
+        <div id="dmsg"></div>
+      </div></div>
+      <div class="row btns"><button class="ok" id="dok">OK</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const KEY = 'catPomodoro.v1';
+let db = {days:{}};
+try { const saved = JSON.parse(localStorage.getItem(KEY)); if (saved && saved.days) db = saved; } catch (e) {}
+
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmt = ms => { const s = Math.ceil(ms/1000); return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; };
+const mins = id => Math.min(180, Math.max(1, parseInt($(id).value) || 1));
+const say = t => {
+  $('#say').textContent = t;
+  $$('#mini .say').forEach(e => e.textContent = t);
+};
+
+const S = {phase:'idle', title:'', total:0, left:0, endAt:0, paused:false};
+let mode = 'full', pip = null, frame = 0;
+let showAllDays = false;
+const mini = $('#mini');
+
+/* ---------- pixel cat (64x40 grid, 6px per pixel) ---------- */
+const W = 64, H = 40;
+const cv = document.createElement('canvas');
+cv.width = W; cv.height = H;
+const cx = cv.getContext('2d');
+const PAL = { '#': '#1a1411', y: '#f7c948', p: '#f08a8a', s: '#b8a58c', g: '#8a7d70', b: '#bfe3ff', c: '#4f7fa8' };
+const px = (x, y, w, h, c = '#1a1411') => { cx.fillStyle = c; cx.fillRect(x, y, w, h); };
+let beat = 0;
+
+// Sitting cat from the reference picture. Numbers are the reference grid (row, column).
+const SIT = {
+  15: [[32,32,'#'],[43,43,'#']],
+  16: [[32,33,'#'],[42,43,'#']],
+  17: [[32,32,'#'],[33,33,'p'],[42,42,'p'],[43,43,'#']],
+  18: [[32,32,'#'],[33,33,'p'],[34,34,'#'],[41,41,'#'],[42,42,'p'],[43,43,'#']],
+  19: [[31,44,'#']], 20: [[31,44,'#']], 21: [[31,44,'#']], 22: [[31,44,'#']], 23: [[31,44,'#']],
+  24: [[31,32,'#'],[33,33,'y'],[34,35,'#'],[36,36,'y'],[37,38,'#'],[39,39,'y'],[40,41,'#'],[42,42,'y'],[43,44,'#']],
+  25: [[31,32,'#'],[33,36,'y'],[37,38,'#'],[39,42,'y'],[43,44,'#']],
+  26: [[31,33,'#'],[34,35,'y'],[36,39,'#'],[40,41,'y'],[42,44,'#']],
+  27: [[31,44,'#']], 28: [[31,44,'#']],
+  29: [[32,43,'#']], 30: [[33,42,'#']], 31: [[33,43,'#']], 32: [[33,43,'#']],
+  33: [[32,43,'#']], 34: [[32,43,'#']], 35: [[31,43,'#']], 36: [[30,43,'#']], 37: [[30,43,'#']],
+  38: [[29,43,'#']], 39: [[28,43,'#']], 40: [[28,43,'#']], 41: [[27,43,'#']], 42: [[27,43,'#']],
+  43: [[26,43,'#']], 44: [[26,43,'#']], 45: [[26,43,'#']], 46: [[26,43,'#']], 47: [[26,43,'#']], 48: [[26,43,'#']]
+};
+// Tail, drawn separately so it can sway
+const TAIL = { 43: [[22,25]], 44: [[18,25]], 45: [[15,25]], 46: [[15,25]], 47: [[15,20]], 48: [[16,19]], 49: [[16,18]] };
+
+// Paints one reference row segment; flip mirrors the cat for facing left
+function band(a, b, r, col, ox, oy, flip, dx = 0) {
+  const x1 = flip ? 45 - b : a - 14, x2 = flip ? 45 - a : b - 14;
+  px(ox + x1 + dx, oy + r - 15, x2 - x1 + 1, 1, PAL[col]);
+}
+function paintSit(ox, oy, flip, blink, tailDx) {
+  band(26, 44, 49, 's', ox, oy, flip);                       // shadow
+  for (const r in SIT) for (const [a, b, c] of SIT[r])
+    band(a, b, +r, blink && c === 'y' ? '#' : c, ox, oy, flip);
+  for (const r in TAIL) for (const [a, b] of TAIL[r])
+    band(a, b, +r, '#', ox, oy, flip, +r >= 46 ? tailDx : 0);
+}
+
+// Side-sleeping pose based on the resting-cat reference.
+const SLEEP = {
+  10: [[43,44,'#'],[50,51,'#']],
+  11: [[42,45,'#'],[49,52,'#']],
+  12: [[41,53,'#']],
+  13: [[40,54,'#']],
+  14: [[39,55,'#']],
+  15: [[38,55,'#']], 16: [[38,55,'#']], 17: [[38,55,'#']],
+  18: [[38,55,'#']], 19: [[38,55,'#']], 20: [[38,55,'#']],
+  21: [[38,55,'#']], 22: [[38,55,'#']], 23: [[37,55,'#']],
+  24: [[34,54,'#']], 25: [[29,53,'#']], 26: [[23,52,'#']],
+  27: [[18,51,'#']], 28: [[16,50,'#']], 29: [[15,49,'#']],
+  30: [[16,48,'#']], 31: [[18,46,'#']], 32: [[22,44,'#']],
+  33: [[27,41,'#']]
+};
+const SLEEP_TAIL = {
+  22: [[13,17]], 23: [[11,18]], 24: [[11,19]],
+  25: [[13,21]], 26: [[15,22]], 27: [[17,23]], 28: [[19,24]]
+};
+function paintSleep(breath, tailDy) {
+  px(5, 34, 54, 1, PAL.s);
+  px(8, 35, 48, 1, PAL.s);
+  px(12, 36, 40, 1, PAL.s);
+  for (const r in SLEEP) for (const [a, b, c] of SLEEP[r]) {
+    const bodyLift = breath && +r >= 25 ? 1 : 0;
+    px(a, +r - bodyLift, b - a + 1, 1, PAL[c]);
+  }
+  for (const r in SLEEP_TAIL) for (const [a, b] of SLEEP_TAIL[r])
+    px(a, +r + tailDy, b - a + 1, 1);
+  px(43, 12, 2, 1, PAL.p);                                    // inner ears
+  px(50, 12, 2, 1, PAL.p);
+  px(43, 20, 3, 1, PAL.y);                                    // closed eyes
+  px(50, 20, 3, 1, PAL.y);
+  px(47, 22, 2, 1, PAL.p);                                    // nose
+}
+
+function Z(x, y, s) {
+  for (let r = 0; r < s; r++) for (let c = 0; c < s; c++)
+    if (r === 0 || r === s - 1 || c === s - 1 - r) px(x + c, y + r, 1, 1);
+}
+
+function drawWork() {
+  px(38, 24, 22, 11, PAL.g);                                  // laptop lid
+  px(40, 26, 18, 7, PAL.b);                                   // screen
+  px(42, 28 + (beat % 3) * 2, 6 + (beat % 5), 1, PAL.c);      // scrolling code
+  px(42, 32, 4 + (beat % 4) * 2, 1, PAL.c);
+  px(34, 35, 29, 2, PAL.g);                                   // keyboard base
+  paintSit(2, 5, false, beat % 23 === 0, beat % 4 < 2 ? 0 : 1);
+  px(31, 34 + frame, 4, 1);                                   // typing paw
+}
+
+function drawSleep() {
+  const sleepBeat = Math.floor(beat / 2);
+  const breath = [0, 0, 1, 1, 1, 0, 0, 0][sleepBeat % 8];
+  const tailDy = sleepBeat % 15 < 2 ? -1 : 0;
+  paintSleep(breath, tailDy);
+  Z(8, 12 - sleepBeat % 18, 5);
+}
+
+const cat = {x: 10, dir: 1, mode: 'walk', t: 20, actionFrame: 0};
+function lurkStep() {
+  cat.t--;
+  cat.actionFrame++;
+  if (cat.t <= 0) {
+    const actions = ['walk', 'lurk', 'look', 'peek'].filter(action => action !== cat.mode);
+    cat.mode = actions[Math.random() * actions.length | 0];
+    cat.t = cat.mode === 'walk' ? 16 + (Math.random() * 18 | 0) :
+      cat.mode === 'lurk' ? 12 + (Math.random() * 16 | 0) :
+      10 + (Math.random() * 10 | 0);
+    cat.actionFrame = 0;
+  }
+  if (cat.mode === 'walk') {
+    cat.x += cat.dir * 0.6;
+    if (cat.x < -14 || cat.x > W - 32) {       // reach an edge and lurk there, half hidden
+      cat.x = Math.max(-14, Math.min(W - 32, cat.x));
+      cat.dir *= -1; cat.mode = 'lurk'; cat.t = 18; cat.actionFrame = 0;
+    }
+  }
+}
+function drawLurk() {
+  lurkStep();
+  const moving = cat.mode === 'walk';
+  const peek = cat.mode === 'peek' ? Math.round(Math.sin((cat.actionFrame % 12) / 11 * Math.PI) * 2) : 0;
+  const peekDir = cat.x < 0 ? 1 : cat.x > W - 32 ? -1 : cat.dir;
+  const lookFlip = cat.mode === 'look' && Math.floor(cat.actionFrame / 4) % 2 === 1;
+  paintSit(Math.round(cat.x + peekDir * peek), 5 - (moving && frame ? 1 : 0) - peek,
+    (cat.dir < 0) !== lookFlip,
+    beat % 23 === 0, beat % 4 < 2 ? 0 : 1);
+}
+
+function anim() {
+  frame ^= 1; beat++;
+  cx.clearRect(0, 0, W, H);
+  if (S.phase === 'work') drawWork();
+  else if (S.phase === 'rest') drawSleep();
+  else drawLurk();
+}
+setInterval(anim, 220);
+
+function placeCat() { (mode === 'full' ? $('#stageFull') : $('#stageMini')).appendChild(cv); }
+function setMode(m) {
+  mode = m;
+  $('#app').hidden = m !== 'full';
+  mini.hidden = m === 'full';
+  if (window.desktopWindow) {
+    document.body.classList.add('desktop-app');
+    document.body.classList.toggle('desktop-widget', m === 'mini');
+  }
+  placeCat();
+  if (window.desktopWindow && (m === 'mini' || m === 'full'))
+    window.desktopWindow.setMode(m);
+}
+
+/* ---------- sound and notifications ---------- */
+function beep() {
+  try {
+    const a = new (window.AudioContext || window.webkitAudioContext)();
+    [0, .35, .7].forEach(t => {
+      const o = a.createOscillator(), g = a.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(a.destination);
+      g.gain.setValueAtTime(.2, a.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(.001, a.currentTime + t + .3);
+      o.start(a.currentTime + t); o.stop(a.currentTime + t + .3);
+    });
+  } catch (e) {}
+}
+function notify(body) {
+  try { if ('Notification' in window && Notification.permission === 'granted') new Notification('Cat Pomodoro', {body}); } catch (e) {}
+}
+
+/* ---------- storage ---------- */
+function log(type, title, min, done, how = 'stopped') {
+  if (min < 1 && !done) return;
+  const k = ymd(new Date());
+  (db.days[k] = db.days[k] || []).push({type, title, min: Math.round(min*10)/10, done, how, at: new Date().toTimeString().slice(0,5)});
+  try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
+  if (showAllDays || !$('#day').value || $('#day').value === k) renderHistory();
+}
+function historySummary(list) {
+  const work = list.filter(s => s.type === 'work');
+  const workMin = work.reduce((a, s) => a + s.min, 0);
+  const restMin = list.filter(s => s.type === 'rest').reduce((a, s) => a + s.min, 0);
+  return `Deep work: ${Math.round(workMin)} min | Rest: ${Math.round(restMin)} min | Completed: ${work.filter(s => s.done).length} of ${work.length} sessions`;
+}
+function historyEntry(s) {
+  return `${s.at}  ${s.type === 'work' ? 'WORK' : 'REST'}  ${s.title} | ${s.min} min${s.done ? '' : ' (' + (s.how || 'stopped') + ')'}`;
+}
+function renderHistory() {
+  const dayInput = $('#day');
+  const summary = $('#sum');
+  const ul = $('#hist');
+  $('#historyMode').textContent = showAllDays ? 'Show selected day' : 'Show all days';
+  dayInput.hidden = showAllDays;
+  ul.innerHTML = '';
+  if (showAllDays) {
+    const days = Object.keys(db.days).filter(k => Array.isArray(db.days[k]) && db.days[k].length).sort().reverse();
+    const allEntries = days.reduce((all, day) => all.concat(db.days[day]), []);
+    summary.textContent = allEntries.length ? `All days (${days.length}): ${historySummary(allEntries)}` : 'No session logs yet.';
+    if (!days.length) {
+      const li = document.createElement('li');
+      li.textContent = 'No sessions have been logged yet.';
+      ul.appendChild(li);
+      return;
+    }
+    days.forEach(day => {
+      const entries = db.days[day];
+      const group = document.createElement('li');
+      group.className = 'day-group';
+      const heading = document.createElement('h4');
+      heading.className = 'day-heading';
+      heading.textContent = day;
+      const daySummary = document.createElement('div');
+      daySummary.className = 'day-summary';
+      daySummary.textContent = historySummary(entries);
+      const list = document.createElement('ul');
+      list.className = 'day-entries';
+      entries.slice().reverse().forEach(s => {
+        const entry = document.createElement('li');
+        entry.textContent = historyEntry(s);
+        list.appendChild(entry);
+      });
+      group.append(heading, daySummary, list);
+      ul.appendChild(group);
+    });
+    return;
+  }
+  const k = $('#day').value || ymd(new Date());
+  const list = db.days[k] || [];
+  summary.textContent = historySummary(list);
+  if (!list.length) { const li = document.createElement('li'); li.textContent = 'No sessions on this day yet.'; ul.appendChild(li); }
+  list.slice().reverse().forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = historyEntry(s);
+    ul.appendChild(li);
+  });
+}
+
+/* ---------- timer logic ---------- */
+function start() {
+  if (S.phase !== 'idle') return;
+  const t = $('#task').value.trim();
+  if (!t) { say('Give this deep work block a title first. I will not start without one.'); $('#task').focus(); return; }
+  S.title = t;
+  try { Notification.requestPermission(); } catch (e) {}
+  begin('work', mins('#workMin'));
+}
+function begin(phase, min) {
+  S.phase = phase; S.total = min*60000; S.left = S.total; S.endAt = Date.now() + S.total; S.paused = false;
+  say(phase === 'work' ? 'Deep work on. I am typing very seriously.' : 'Rest time. Shh... I am napping.');
+  render();
+}
+function pause() {
+  if (S.phase === 'idle') return;
+  if (S.paused) { S.paused = false; S.endAt = Date.now() + S.left; say('Back to work. Meow.'); }
+  else { S.paused = true; say('Paused. The cat yawns.'); }
+  render();
+}
+function stop() {
+  if (S.phase === 'idle') return;
+  const m = (S.total - S.left) / 60000;
+  log(S.phase, S.phase === 'work' ? S.title : 'Rest', m, false);
+  S.phase = 'idle'; S.paused = false;
+  say('Stopped. Time so far is saved to today.');
+  render();
+}
+function skip() {
+  if (S.phase === 'idle') return;
+  const done = S.phase;
+  log(done, done === 'work' ? S.title : 'Rest', (S.total - S.left) / 60000, false, 'skipped');
+  S.phase = 'idle'; S.paused = false;
+  if (done === 'work') { say('Skipped. Rest time.'); begin('rest', mins('#restMin')); }
+  else { say('Rest skipped. Ready when you are.'); render(); }
+}
+function reset() {
+  if (S.phase === 'idle') return;
+  S.phase = 'idle'; S.paused = false; S.left = 0;
+  say('Timer reset. Nothing was saved.');
+  render();
+}
+function finish() {
+  const done = S.phase;
+  log(done, done === 'work' ? S.title : 'Rest', S.total/60000, true);
+  S.phase = 'idle'; S.paused = false;
+  beep();
+  notify(done === 'work' ? 'Deep work finished. Time to rest!' : 'Rest is over. Ready for the next block?');
+  if (done === 'work') dialog('Deep work is done! Time to rest.', () => begin('rest', mins('#restMin')));
+  else dialog('Rest is over! Confirm your title and press Start for the next block.');
+  render();
+}
+function tick() {
+  if (S.phase === 'idle') return;
+  if (!S.paused) {
+    S.left = Math.max(0, S.endAt - Date.now());
+    if (S.left === 0) { finish(); return; }
+  }
+  render();
+}
+setInterval(tick, 250);
+
+function dialog(msg, cb) {
+  $('#dmsg').textContent = msg;
+  $('#dlg').hidden = false;
+  $('#dok').onclick = () => { $('#dlg').hidden = true; if (cb) cb(); };
+}
+
+function render() {
+  const idle = S.phase === 'idle';
+  const ms = idle ? mins('#workMin') * 60000 : S.left;
+  $$('.time').forEach(e => e.textContent = fmt(ms));
+  const label = idle ? 'READY' : (S.phase === 'work' ? 'DEEP WORK' : 'REST') + (S.paused ? ' - PAUSED' : '');
+  $$('.phase').forEach(e => e.textContent = label);
+  $$('[data-act=start]').forEach(b => b.disabled = !idle);
+  $$('[data-act=pause]').forEach(b => { b.disabled = idle; b.textContent = S.paused ? 'Resume' : 'Pause'; });
+  $$('[data-act=stop],[data-act=skip],[data-act=reset]').forEach(b => b.disabled = idle);
+  $('#task').disabled = !idle;
+  $('#mtask').textContent = idle ? '' : S.title;
+  document.title = idle ? 'Cat Pomodoro' : `${fmt(S.left)} - ${S.phase === 'work' ? 'Deep work' : 'Rest'}`;
+}
+
+/* ---------- actions (main window and pop-out share this) ---------- */
+function onClick(e) {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const a = b.dataset.act;
+  if (a === 'start') start();
+  else if (a === 'pause') pause();
+  else if (a === 'stop') stop();
+  else if (a === 'skip') skip();
+  else if (a === 'reset') reset();
+  else if (a === 'mini') setMode('mini');
+  else if (a === 'full') { setMode('full'); if (pip) pip.close(); }
+  else if (a === 'close' && window.desktopWindow) window.desktopWindow.close();
+  else if (a === 'pip') popOut();
+  else if (a === 'collapse') b.closest('.win').classList.toggle('collapsed');
+}
+document.addEventListener('click', onClick);
+
+async function popOut() {
+  if (!('documentPictureInPicture' in window)) { say('Pop-out needs Chrome or Edge. Use the floating mini view instead.'); return; }
+  if (pip) { pip.close(); return; }
+  try { pip = await documentPictureInPicture.requestWindow({width: 240, height: 270}); }
+  catch (e) { say('Pop-out was blocked. Try again with a click.'); return; }
+  [...document.querySelectorAll('style,link[rel=stylesheet]')].forEach(n => pip.document.head.append(n.cloneNode(true)));
+  pip.document.body.style.cssText = 'margin:0;padding:6px;background:#fdf6e3;font-family:VT323,monospace';
+  mini.classList.add('inpip');
+  pip.document.body.append(mini);
+  pip.document.addEventListener('click', onClick);
+  pip.addEventListener('pagehide', () => {
+    pip = null;
+    mini.classList.remove('inpip');
+    document.body.append(mini);
+    if (mode === 'pip') setMode('mini'); else placeCat();
+  });
+  setMode('pip');
+}
+
+/* ---------- dragging the floating mini window ---------- */
+if (!window.desktopWindow) {
+  let drag = null;
+  mini.querySelector('.drag').addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    const r = mini.getBoundingClientRect();
+    drag = {dx: e.clientX - r.left, dy: e.clientY - r.top};
+    mini.style.left = r.left + 'px'; mini.style.top = r.top + 'px';
+    mini.style.right = 'auto'; mini.style.bottom = 'auto';
+  });
+  window.addEventListener('pointermove', e => {
+    if (!drag) return;
+    mini.style.left = Math.max(0, e.clientX - drag.dx) + 'px';
+    mini.style.top = Math.max(0, e.clientY - drag.dy) + 'px';
+  });
+  window.addEventListener('pointerup', () => drag = null);
+}
+
+/* ---------- init ---------- */
+const today = ymd(new Date());
+$('#day').value = today; $('#day').max = today;
+$('#day').addEventListener('change', renderHistory);
+$('#historyMode').addEventListener('click', () => { showAllDays = !showAllDays; renderHistory(); });
+$('#workMin').addEventListener('input', render);
+$('#task').addEventListener('keydown', e => { if (e.key === 'Enter') start(); });
+placeCat();
+say('Meow. Type what you will work on, then press Start.');
+render();
+renderHistory();
+if (window.desktopWindow) setMode('mini');
+</script>
+</body>
+</html>
